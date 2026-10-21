@@ -1,248 +1,154 @@
-(() => {
-  "use strict";
+const socket = io();
 
-  const socket = io({ reconnection: true, reconnectionAttempts: Infinity });
-  const $ = id => document.getElementById(id);
-  const NAME_KEY = "arenaPlayerName";
-  const PLAYER_KEY = "arenaPlayerKey";
-  let sessionReady = false;
-  let currentRooms = [];
+// Generate or retrieve stable session identifier
+let sessionId = localStorage.getItem('sessionId');
+if (!sessionId) {
+    sessionId = Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('sessionId', sessionId);
+}
 
-  function showMessage(element, message, isError = true) {
-    if (!element) return;
-    element.textContent = message || "";
-    element.style.color = isError ? "#ff8f8f" : "";
-  }
-  function getPlayerName() {
-    try { return localStorage.getItem(NAME_KEY) || ""; } catch { return ""; }
-  }
-  function setPlayerName(name) {
-    localStorage.setItem(NAME_KEY, name);
-  }
-  function getPlayerKey() {
-    let key = localStorage.getItem(PLAYER_KEY);
-    if (!key) {
-      // UUID-shaped key generated locally; server validates its shape.
-      key = (crypto.randomUUID ? crypto.randomUUID() :
-        "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
-          const r = Math.random() * 16 | 0;
-          return (c === "x" ? r : (r & 3 | 8)).toString(16);
-        }));
-      localStorage.setItem(PLAYER_KEY, key);
-    }
-    return key;
-  }
-  function resumeSession(callback) {
-    if (!socket.connected) {
-      showMessage($("message"), "Connecting to the game server…");
-      return;
-    }
-    const name = getPlayerName();
-    if (!name) {
-      sessionReady = true;
-      callback?.({ ok: true, noName: true });
-      return;
-    }
-    socket.emit("session:resume", { playerKey: getPlayerKey(), name }, result => {
-      sessionReady = Boolean(result?.ok);
-      if (!result?.ok) {
-        showMessage($("message"), result?.error || "Could not restore player session.");
-        return;
-      }
-      callback?.(result);
+// Global player name handling
+const savedName = localStorage.getItem('playerName') || 'Player' + Math.floor(Math.random() * 1000);
+const nameInput = document.getElementById('player-name');
+if (nameInput) {
+    nameInput.value = savedName;
+    nameInput.addEventListener('change', (e) => {
+        localStorage.setItem('playerName', e.target.value.trim() || 'Player');
     });
-  }
-  function ensureName(callback) {
-    const input = $("playerName");
-    const candidate = (input?.value || getPlayerName()).trim();
-    if (!candidate) {
-      showMessage($("message"), "Enter your player name first.");
-      input?.focus();
-      return;
-    }
-    const name = candidate.replace(/\s+/g, " ").slice(0, 20);
-    setPlayerName(name);
-    if (!socket.connected) {
-      showMessage($("message"), "Connecting to the server. Please try again in a moment.");
-      return;
-    }
-    socket.emit("session:resume", { playerKey: getPlayerKey(), name }, result => {
-      if (!result?.ok) {
-        showMessage($("message"), result?.error || "Could not register your name.");
-        return;
-      }
-      sessionReady = true;
-      callback?.(result);
-    });
-  }
-  function escapeHTML(value) {
-    return String(value).replace(/[&<>"']/g, character => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-    })[character]);
-  }
-  function renderRooms(rooms, target) {
-    if (!target) return;
-    currentRooms = Array.isArray(rooms) ? rooms : [];
-    target.replaceChildren();
-    if (!currentRooms.length) {
-      const empty = document.createElement("p");
-      empty.textContent = "No servers available. Create one!";
-      target.appendChild(empty);
-      return;
-    }
-    for (const room of currentRooms) {
-      const card = document.createElement("article");
-      card.className = "server-card";
-      const title = document.createElement("h3");
-      title.textContent = room.name;
-      const details = document.createElement("p");
-      details.textContent = `${room.game === "paper" ? "Paper.io" : "Snake"} · ${room.players}/${room.maxPlayers} players · ${room.locked ? "🔒 Password required" : "Public"} · ${room.status}`;
-      const button = document.createElement("button");
-      button.textContent = "Join Server";
-      button.disabled = room.status !== "waiting" || room.players >= room.maxPlayers;
-      button.addEventListener("click", () => {
-        const name = getPlayerName();
-        if (!name) {
-          showMessage($("message"), "Enter your player name on the homepage first.");
-          location.href = "/";
-          return;
-        }
-        const doJoin = password => ensureName(() => {
-          socket.emit("room:join", { roomId: room.id, password }, result => {
-            if (!result?.ok) {
-              showMessage($("message"), result?.error || "Could not join the server.");
-              return;
-            }
-            location.href = `/room?id=${encodeURIComponent(room.id)}`;
-          });
-        });
-        if (room.locked) {
-          const password = window.prompt("Enter the room password");
-          if (password === null) return;
-          doJoin(password);
-        } else doJoin("");
-      });
-      card.append(title, details, button);
-      target.appendChild(card);
-    }
-  }
+}
 
-  socket.on("connect", () => {
-    sessionReady = false;
-    resumeSession(() => socket.emit("rooms:list"));
-    socket.emit("rooms:list");
-  });
-  socket.on("connect_error", () => {
-    showMessage($("message"), "Can't connect to the game server yet. Please wait and retry.");
-  });
-  socket.on("rooms:update", rooms => {
-    renderRooms(rooms, $("serverList"));
-  });
+// Resume session on connection
+socket.on('connect', () => {
+    socket.emit('session:resume', { 
+        sessionId, 
+        name: localStorage.getItem('playerName') || savedName 
+    });
+});
 
-  const nameInput = $("playerName");
-  if (nameInput) {
-    nameInput.value = getPlayerName();
-    $("createButton")?.addEventListener("click", () => {
-      ensureName(result => {
-        if (result?.ok) location.href = "/create";
-      });
-    });
-    $("joinButton")?.addEventListener("click", () => {
-      ensureName(result => {
-        if (result?.ok) location.href = "/join";
-      });
-    });
-    $("refreshButton")?.addEventListener("click", () => {
-      if (socket.connected) socket.emit("rooms:list");
-      else showMessage($("message"), "Connecting to server…");
-    });
-  }
-
-  const createForm = $("createForm");
-  if (createForm) {
-    const savedName = getPlayerName();
-    if (!savedName) {
-      showMessage($("message"), "Please enter your player name on the homepage first.");
+socket.on('session:acknowledged', (data) => {
+    const path = window.location.pathname;
+    // Redirect logic to ensure player is on the correct page
+    if (data.roomId && !path.includes('room.html') && !path.includes('game.html')) {
+        window.location.href = `/room.html?id=${data.roomId}`;
     }
-    createForm.addEventListener("submit", event => {
-      event.preventDefault();
-      showMessage($("message"), "");
-      if (!socket.connected) return showMessage($("message"), "Not connected to the server. Wait a moment and retry.");
-      ensureName(() => {
-        const data = {
-          name: $("serverName").value.trim(),
-          password: $("password").value,
-          game: $("game").value,
-          maxPlayers: Number($("maxPlayers").value)
+});
+
+function displayError(elementId, message) {
+    const el = document.getElementById(elementId);
+    if (el) {
+        el.textContent = message;
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 3000);
+    }
+}
+
+// Page Specific Logic
+const path = window.location.pathname;
+
+if (path.includes('create.html')) {
+    document.getElementById('create-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const roomData = {
+            name: document.getElementById('room-name').value,
+            password: document.getElementById('room-password').value,
+            mode: document.getElementById('game-mode').value,
+            maxPlayers: document.getElementById('max-players').value
         };
-        socket.emit("room:create", data, result => {
-          if (!result?.ok) {
-            showMessage($("message"), result?.error || "Creation failed.");
-            return;
-          }
-          location.href = `/room?id=${encodeURIComponent(result.roomId)}`;
+
+        socket.emit('room:create', roomData, (response) => {
+            if (response.error) displayError('create-error', response.error);
+            else window.location.href = `/room.html?id=${response.roomId}`;
         });
-      });
     });
-  }
+}
 
-  if (location.pathname === "/join") {
-    if (!getPlayerName()) showMessage($("message"), "Please enter your player name on the homepage first.");
-    else resumeSession();
-  }
+if (path.includes('join.html')) {
+    socket.emit('room:list', renderRoomList);
 
-  const roomId = new URLSearchParams(location.search).get("id");
-  if (location.pathname === "/room" && roomId) {
-    const connectRoom = () => {
-      if (!getPlayerName()) {
-        location.href = "/";
-        return;
-      }
-      resumeSession(result => {
-        if (!result?.ok) return;
-        if (result.roomId && result.roomId !== roomId) {
-          showMessage($("roomMessage"), "Your saved session belongs to another room.");
-          return;
+    function renderRoomList(rooms) {
+        const container = document.getElementById('room-list');
+        if (!container) return;
+        
+        container.innerHTML = rooms.length === 0 ? '<p>No public rooms available.</p>' : '';
+        
+        rooms.forEach(room => {
+            const div = document.createElement('div');
+            div.className = 'room-card';
+            div.innerHTML = `
+                <h3>${room.name} (${room.mode})</h3>
+                <p>Players: ${room.currentPlayers}/${room.maxPlayers}</p>
+                ${room.requiresPassword ? '<p>🔒 Password Required</p>' : ''}
+                <button onclick="joinRoom('${room.id}', ${room.requiresPassword})">Join</button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    window.joinRoom = function(roomId, requiresPassword) {
+        let password = null;
+        if (requiresPassword) {
+            password = prompt('Enter room password:');
+            if (password === null) return; 
         }
-        // session:resume already restores membership and joins the Socket.IO room.
-        if (!result.roomId) {
-          showMessage($("roomMessage"), "You are not currently in this room. Return home and join it again.");
-        }
-      });
+        
+        socket.emit('room:join', { roomId, password }, (response) => {
+            if (response.error) displayError('join-error', response.error);
+            else window.location.href = `/room.html?id=${response.roomId}`;
+        });
     };
-    socket.on("connect", connectRoom);
-    if (socket.connected) connectRoom();
+}
 
-    socket.on("room:update", room => {
-      if (room.id !== roomId) return;
-      $("roomName").textContent = room.name;
-      $("roomDetails").textContent = `${room.game === "paper" ? "Paper.io" : "Snake"} · ${room.players.length}/${room.maxPlayers} players · ${room.status}`;
-      const playerList = $("playerList");
-      if (!playerList) return;
-      playerList.replaceChildren();
-      for (const player of room.players) {
-        const row = document.createElement("div");
-        row.className = "player-row";
-        row.textContent = `${player.name}${player.isOwner ? " · Room Owner" : ""}${player.connected ? "" : " · Reconnecting…"}`;
-        playerList.appendChild(row);
-      }
-      const myKey = localStorage.getItem(PLAYER_KEY);
-      $("startButton").disabled = room.ownerId !== myKey || room.players.length < 2 || room.status !== "waiting";
-      showMessage($("roomMessage"), "", false);
-    });
-    $("startButton")?.addEventListener("click", () => {
-      socket.emit("room:start", result => {
-        showMessage($("roomMessage"), result?.ok ? "Starting…" : (result?.error || "Could not start."));
-      });
-    });
-    $("leaveButton")?.addEventListener("click", () => {
-      socket.emit("room:leave", () => {
-        const key = localStorage.getItem(PLAYER_KEY);
-        if (key) {
-          // Keep identity and name; next room can be joined normally.
+if (path.includes('room.html')) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const expectedRoomId = urlParams.get('id');
+
+    socket.on('room:update', (room) => {
+        document.getElementById('room-name-display').textContent = room.name;
+        document.getElementById('room-mode-display').textContent = room.mode;
+        document.getElementById('player-count').textContent = `${room.players.length}/${room.maxPlayers}`;
+
+        const list = document.getElementById('player-list');
+        list.innerHTML = '';
+        
+        let amIOwner = false;
+
+        room.players.forEach(p => {
+            const li = document.createElement('li');
+            li.textContent = `${p.name} ${p.isOwner ? '(Owner)' : ''}`;
+            
+            // Connection Status UI Fix
+            if (!p.connected) {
+                li.style.color = 'gray';
+                li.textContent += ' - Reconnecting...';
+            }
+            
+            if (p.isOwner && p.name === (localStorage.getItem('playerName') || savedName)) {
+                amIOwner = true;
+            }
+            
+            list.appendChild(li);
+        });
+
+        const startBtn = document.getElementById('start-btn');
+        if (startBtn) {
+            startBtn.style.display = amIOwner ? 'block' : 'none';
+            startBtn.disabled = room.players.length < 2;
         }
-        location.href = "/";
-      });
     });
-  }
-})();
+
+    document.getElementById('start-btn')?.addEventListener('click', () => {
+        socket.emit('room:start', (response) => {
+            if (response && response.error) displayError('room-error', response.error);
+        });
+    });
+
+    document.getElementById('leave-btn')?.addEventListener('click', () => {
+        socket.emit('room:leave');
+        window.location.href = '/index.html';
+    });
+
+    socket.on('game:started', (data) => {
+        window.location.href = `/game.html?mode=${data.mode}`;
+    });
+          }
+          
