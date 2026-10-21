@@ -1,0 +1,31 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waiting Room</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back-link" href="/">← Home</a><section class="card">
+  <p class="eyebrow">WAITING ROOM</p>
+  <h1 id="roomName">Connecting...</h1>
+  <p id="roomDetails"></p>
+
+  <h2>Players</h2>
+  <div id="playerList"></div>
+
+  <p id="roomMessage" class="message"></p>
+
+  <div class="button-row">
+    <button id="startButton" disabled>Start Game</button>
+    <button id="leaveButton" class="secondary">Leave Room</button>
+  </div>
+
+  <p class="muted">
+    The match engine will be connected in the next development stage.
+  </p>
+</section>
+
+  </main>  <script src="/socket.io/socket.io.js"></script>  <script src="/app.js"></script></body>
+</html>
