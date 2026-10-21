@@ -1,0 +1,45 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create Server</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back-link" href="/">← Home</a><section class="card">
+  <h1>Create a Server</h1>
+
+  <form id="createForm">
+    <label for="serverName">Server name</label>
+    <input id="serverName" maxlength="32" required
+           placeholder="My Arena">
+
+    <label for="password">Password (optional)</label>
+    <input id="password" type="password" maxlength="100"
+           placeholder="Leave blank for a public room">
+
+    <label for="game">Game mode</label>
+    <select id="game">
+      <option value="paper">Paper.io</option>
+      <option value="snake">Snake</option>
+    </select>
+
+    <label for="maxPlayers">Maximum players</label>
+    <select id="maxPlayers">
+      <option value="4">4 players</option>
+      <option value="6">6 players</option>
+      <option value="8" selected>8 players</option>
+      <option value="10">10 players</option>
+      <option value="12">12 players</option>
+      <option value="16">16 players</option>
+      <option value="20">20 players</option>
+    </select>
+
+    <button type="submit">Build Now</button>
+    <p id="message" class="message"></p>
+  </form>
+</section>
+
+  </main>  <script src="/socket.io/socket.io.js"></script>  <script src="/app.js"></script></body>
+</html>
