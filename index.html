@@ -1,0 +1,49 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multiplayer Arena</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <div class="logo">ARENA</div>
+      <h1>Enter the Arena</h1>
+      <p>Capture territory. Grow your snake. Outlast your opponents.</p>
+    </header><section class="card">
+  <label for="playerName">Your player name</label>
+  <input id="playerName" maxlength="20"
+         placeholder="Enter your name" autocomplete="nickname">
+
+  <div class="button-row">
+    <button id="joinButton">Join Server</button>
+    <button id="createButton" class="secondary">Create Server</button>
+  </div>
+
+  <p id="message" class="message"></p>
+</section>
+
+<section class="card">
+  <div class="section-heading">
+    <h2>Live Servers</h2>
+    <button id="refreshButton" class="small-button">Refresh</button>
+  </div>
+  <div id="serverList" class="server-list">
+    Connecting to the server...
+  </div>
+</section>
+
+<section class="leaderboards">
+  <div class="card">
+    <h2>Paper.io Rankings</h2>
+    <div id="paperLeaderboard">Leaderboard will be added next.</div>
+  </div>
+  <div class="card">
+    <h2>Snake Rankings</h2>
+    <div id="snakeLeaderboard">Leaderboard will be added next.</div>
+  </div>
+</section>
+
+  </main>  <script src="/socket.io/socket.io.js"></script>  <script src="/app.js"></script></body>
+</html>
